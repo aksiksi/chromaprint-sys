@@ -1,8 +1,9 @@
 [package]
 name = "chromaprint-sys"
-version = "0.1.0"
+version = "1.5.0"
 edition = "2021"
 build = "build.rs"
+links = "chromaprint"
 authors = ["Assil Ksiksi <assil@ksiksi.net>"]
 description = "Rust bindings to Chromaprint"
 keywords = ["audio"]
@@ -12,11 +13,19 @@ libc = "0.2"
 
 [build-dependencies]
 bindgen = "0.60"
-cc = "1"
+cfg-if = "1"
 cmake = "0.1"
+pkg-config = "0.3"
 
-# TODO(aksiksi): Add features for available FFT backends
 [features]
 default = []
-# TODO(aksiksi): Fix static on macOS
 static = []
+dynamic = []
+
+# FFT version to use when building from source.
+# Note: only one of these should be set.
+avfft = []
+fftw3 = []
+fftw3f = []
+kissfft = []
+vdsp = []

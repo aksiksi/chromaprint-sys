@@ -1,6 +1,7 @@
 extern crate bindgen;
-extern crate cc;
+extern crate cfg_if;
 extern crate cmake;
+extern crate pkg_config;
 
 use std::env;
 use std::path::PathBuf;
@@ -10,23 +11,60 @@ fn output_dir() -> PathBuf {
     PathBuf::from(env::var("OUT_DIR").unwrap())
 }
 
+// The major and minor versions of this crate track the version of Chromaprint.
 fn chromaprint_version() -> String {
-    // TODO(aksiksi): Make this configurable
-    "v1.5.1".to_string()
+    format!("{}.{}.0", env!("CARGO_PKG_VERSION_MAJOR"), env!("CARGO_PKG_VERSION_MINOR"))
+}
+
+fn is_dynamic() -> bool {
+    env::var("CHROMAPRINT_SYS_DYNAMIC").is_ok() || cfg!(feature = "dynamic")
 }
 
 fn is_static() -> bool {
-    env::var("CARGO_FEATURE_STATIC").is_ok()
+    !is_dynamic()
+        && (env::var("CHROMAPRINT_SYS_STATIC").is_ok()
+            || cfg!(feature = "static")
+            || cfg!(target_os = "windows"))
 }
 
-fn main() {
-    // 1. Clone the Chromaprint repo
-    let version = chromaprint_version();
-    let clone_dest_dir = format!("chromaprint-{}", version);
-    // Remove directory if it exists.
-    std::fs::remove_dir_all(output_dir().join(&clone_dest_dir))
-        .or(std::io::Result::Ok(()))
-        .unwrap();
+fn set_fft_library(cmake_config: &mut cmake::Config) {
+    let fftlib: Option<&str> = None;
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "avfft")] {
+            fftlib = Some("avfft");
+        } else if #[cfg(feature = "fftw3")] {
+            fftlib = Some("fftw3");
+        } else if #[cfg(feature = "fftw3f")] {
+            fftlib = Some("fftw3f");
+        } else if #[cfg(feature = "kissfft")] {
+            fftlib = Some("kissfft");
+        } else if #[cfg(feature = "vdsp")] {
+            if #[cfg(not(any(target_os = "macos", target_os = "ios")))] {
+                compile_error!("vDSP can only be used on macOS or iOS");
+            }
+
+            fftlib = Some("vdsp");
+        }
+    }
+
+    if let Some(fftlib) = fftlib {
+        cmake_config.define("FFTLIB", fftlib);
+    }
+}
+
+// TODO(aksiksi): Avoid downloading code. Instead, add chromaprint as a Git submodule.
+// Only question is how to "pin" the submodule to a specific version.
+fn clone_repo_and_build() -> PathBuf {
+    let version = format!("v{}", chromaprint_version());
+    let dest_dir = format!("chromaprint-{}", &version);
+
+    // Remove the destination directory if it already exists.
+    if std::fs::read_dir(output_dir().join(&dest_dir)).is_ok() {
+        std::fs::remove_dir_all(output_dir().join(&dest_dir)).unwrap();
+    }
+
+    // Clone the repo.
     let status = Command::new("git")
         .current_dir(output_dir())
         .arg("clone")
@@ -34,41 +72,15 @@ fn main() {
         .arg("-b")
         .arg(version)
         .arg("https://github.com/acoustid/chromaprint")
-        .arg(&clone_dest_dir)
+        .arg(&dest_dir)
         .status()
         .expect("failed to run git clone");
     if !status.success() {
         panic!("git clone failed")
     }
 
-    // TODO(aksiksi): This is trying to fix static linking on macOS. WIP.
-    if is_static() && cfg!(target_os = "macos") {
-        // Taken from here: https://github.com/zmwangx/rust-ffmpeg-sys/blob/master/build.rs
-        let frameworks = vec![
-            "AppKit",
-            "AudioToolbox",
-            "AVFoundation",
-            "CoreFoundation",
-            "CoreGraphics",
-            "CoreMedia",
-            "CoreServices",
-            "CoreVideo",
-            "Foundation",
-            "OpenCL",
-            "OpenGL",
-            "QTKit",
-            "QuartzCore",
-            "Security",
-            "VideoDecodeAcceleration",
-            "VideoToolbox",
-        ];
-        for f in frameworks {
-            println!("cargo:rustc-link-lib=framework={}", f);
-        }
-    }
-
-    // 2. Build Chromaprint using CMake
-    let mut cmake_config = cmake::Config::new(output_dir().join(&clone_dest_dir));
+    // Setup CMake based on provided feature flags.
+    let mut cmake_config = cmake::Config::new(output_dir().join(&dest_dir));
     if is_static() {
         cmake_config.cflag("-static");
         if cfg!(not(target_os = "macos")) {
@@ -77,8 +89,14 @@ fn main() {
                 .cflag("-static-libstdc++");
         }
     }
+
+    // Set the selected FFT library, if any. By default, we defer selection to Chromaprint.
+    set_fft_library(&mut cmake_config);
+
+    // Build the chromaprint library using CMake.
     let chromaprint_dst = cmake_config.build();
-    // For some reason, the cmake builder returns the path to the output directory
+
+    // For some reason, the "cmake" builder returns the path to the output directory
     // instead of the lib directory.
     println!(
         "cargo:rustc-link-search=native={}",
@@ -90,10 +108,34 @@ fn main() {
         println!("cargo:rustc-link-lib=chromaprint");
     }
 
-    // 3. Generate the bindings
+    // Headers are located in the "src" directory of the chromaprint repo.
+    output_dir().join(&dest_dir).join("src")
+}
+
+fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+
+    let include_path;
+
+    // Check if the library is already available on the system.
+    let library = pkg_config::Config::new()
+        .atleast_version(&chromaprint_version())
+        .statik(is_static())
+        .probe("libchromaprint");
+    if let Ok(library) = library {
+        if library.include_paths.len() == 0 {
+            println!("cargo:warning=No include paths found!");
+            return;
+        }
+        include_path = library.include_paths[0].clone();
+    } else {
+        // If the library is not available, clone it from Github and build it.
+        include_path = clone_repo_and_build();
+    }
+
+    // Generate the bindings.
     let header_path = output_dir()
-        .join(&clone_dest_dir)
-        .join("src")
+        .join(&include_path)
         .join("chromaprint.h")
         .display()
         .to_string();
