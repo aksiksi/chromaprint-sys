@@ -29,8 +29,11 @@ brew install pkg-config chromaprint
 ### Windows
 
 1. Install `cargo-vcpkg`: `cargo install cargo-vcpkg`
-2. Install `vcpkg` dependencies: `cargo vcpkg build`
-3. Build: `cargo build`
+2. Install `vcpkg` deps: `cargo vcpkg build`
+3. Add `vcpkg` bin directory to path (for DLL lookup): `$VCPKG_ROOT\installed\x64-windows\bin`
+4. Build and run: `cargo run`
+
+**Note:** Static linking does not work on Windows due to issues with static linking `ffmpeg` using vcpkg. See: https://github.com/microsoft/vcpkg/issues/9571
 
 ### Building chromaprint from source
 
