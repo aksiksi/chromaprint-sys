@@ -1,7 +1,5 @@
 extern crate bindgen;
 extern crate cfg_if;
-extern crate cmake;
-extern crate pkg_config;
 
 use std::env;
 use std::path::PathBuf;
@@ -23,8 +21,7 @@ fn is_dynamic() -> bool {
 fn is_static() -> bool {
     !is_dynamic()
         && (env::var("CHROMAPRINT_SYS_STATIC").is_ok()
-            || cfg!(feature = "static")
-            || cfg!(target_os = "windows"))
+            || cfg!(feature = "static"))
 }
 
 fn set_fft_library(cmake_config: &mut cmake::Config) {
@@ -115,23 +112,47 @@ fn clone_repo_and_build() -> PathBuf {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
-    let include_path;
+    let mut include_path = None;
 
     // Check if the library is already available on the system.
-    let library = pkg_config::Config::new()
-        .atleast_version(&chromaprint_version())
-        .statik(is_static())
-        .probe("libchromaprint");
-    if let Ok(library) = library {
-        if library.include_paths.len() == 0 {
-            println!("cargo:warning=No include paths found!");
-            return;
+    #[cfg(not(windows))]
+    {
+        // Use pkg-config on Linux and macOS.
+        let library = pkg_config::Config::new()
+            .atleast_version(&chromaprint_version())
+            .statik(is_static())
+            .probe("libchromaprint");
+        if let Ok(library) = library {
+            if library.include_paths.len() == 0 {
+                println!("cargo:warning=No include paths found!");
+                return;
+            }
+            include_path = Some(library.include_paths[0].clone());
         }
-        include_path = library.include_paths[0].clone();
-    } else {
-        // If the library is not available, clone it from Github and build it.
-        include_path = clone_repo_and_build();
     }
+    #[cfg(windows)]
+    {
+        // Use vcpkg on Windows.
+        // NOTE: There is apparently no way to pin to specific version...
+        if !is_static() {
+            env::set_var("VCPKGRS_DYNAMIC", "1");
+        }
+        let library = vcpkg::find_package("chromaprint");
+        if let Ok(library) = library {
+            if library.include_paths.len() == 0 {
+                println!("cargo:warning=No include paths found!");
+                return;
+            }
+            include_path = Some(library.include_paths[0].clone());
+        }
+    }
+
+    // If the library is not available, clone it from Github and build it.
+    if include_path.is_none() {
+        include_path = Some(clone_repo_and_build());
+    }
+
+    let include_path = include_path.unwrap();
 
     // Generate the bindings.
     let header_path = output_dir()

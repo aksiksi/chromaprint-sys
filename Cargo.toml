@@ -15,6 +15,11 @@ libc = "0.2"
 bindgen = "0.60"
 cfg-if = "1"
 cmake = "0.1"
+
+[target.'cfg(windows)'.build-dependencies]
+vcpkg = "0.2"
+
+[target.'cfg(unix)'.build-dependencies]
 pkg-config = "0.3"
 
 [features]
