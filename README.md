@@ -28,13 +28,9 @@ brew install pkg-config chromaprint
 
 ### Windows
 
-1. Install `vcpkg`: https://vcpkg.io/en/getting-started.html
-2. Set `VCPKG_ROOT` environment variable to installation directory
-3. Install `chromaprint` (static):
-
-```
-vcpkg install chromaprint:x64-windows-static-md
-```
+1. Install `cargo-vcpkg`: `cargo install cargo-vcpkg`
+2. Install `vcpkg` dependencies: `cargo vcpkg build`
+3. Build: `cargo build`
 
 ### Building chromaprint from source
 

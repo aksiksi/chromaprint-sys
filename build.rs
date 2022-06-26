@@ -136,6 +136,9 @@ fn main() {
         // NOTE: There is apparently no way to pin to specific version...
         if !is_static() {
             env::set_var("VCPKGRS_DYNAMIC", "1");
+            env::set_var("VCPKGRS_TRIPLET", "x64-windows");
+        } else {
+            env::set_var("VCPKGRS_TRIPLET", "x64-windows-static");
         }
         let library = vcpkg::find_package("chromaprint");
         if let Ok(library) = library {

@@ -34,3 +34,13 @@ fftw3 = []
 fftw3f = []
 kissfft = []
 vdsp = []
+
+# Info for cargo-vcpkg
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "cef0b3ec767df6e83806899fe9525f6cf8d7bc91"
+
+[package.metadata.vcpkg.target]
+# Dynamic linking only on Windows.
+x86_64-pc-windows-msvc = { triplet = "x64-windows", dependencies = ["chromaprint"] }
+
