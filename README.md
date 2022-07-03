@@ -1,6 +1,8 @@
 # chromaprint-sys-next
 
-Rust bindings for Chromaprint.
+![Crates.io](https://img.shields.io/crates/v/chromaprint-sys-next)
+
+Rust bindings for [Chromaprint](https://github.com/acoustid/chromaprint). Version tracks the Chromaprint version.
 
 ## Prerequisites
 
