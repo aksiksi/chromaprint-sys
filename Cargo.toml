@@ -1,12 +1,17 @@
 [package]
-name = "chromaprint-sys"
+name = "chromaprint-sys-next"
 version = "1.5.0"
 edition = "2021"
+description = "Rust bindings to Chromaprint"
+authors = ["Assil Ksiksi <assil@ksiksi.net>"]
 build = "build.rs"
 links = "chromaprint"
-authors = ["Assil Ksiksi <assil@ksiksi.net>"]
-description = "Rust bindings to Chromaprint"
-keywords = ["audio"]
+readme = "README.md"
+homepage = "https://github.com/aksiksi/chromaprint-sys"
+repository = "https://github.com/aksiksi/chromaprint-sys"
+license = "MIT"
+keywords = ["audio", "fingerprinting"]
+categories = ["multimedia::audio"]
 
 [dependencies]
 libc = "0.2"
