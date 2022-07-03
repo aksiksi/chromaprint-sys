@@ -1,4 +1,4 @@
-# chromaprint-sys
+# chromaprint-sys-next
 
 Rust bindings for Chromaprint.
 
@@ -38,3 +38,4 @@ brew install pkg-config chromaprint
 ### Building chromaprint from source
 
 If the library is not found on the system, the script will try to build it from source. This requires `CMake` to be installed: https://cmake.org/download/
+
