@@ -3,7 +3,6 @@ extern crate cfg_if;
 
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
 
 const CHROMAPRINT_SRC_DIR: &str = "src/chromaprint";
 
@@ -14,9 +13,10 @@ fn output_dir() -> PathBuf {
 // The major and minor versions of this crate track the version of Chromaprint.
 fn chromaprint_version() -> String {
     format!(
-        "{}.{}.0",
+        "{}.{}.{}",
         env!("CARGO_PKG_VERSION_MAJOR"),
-        env!("CARGO_PKG_VERSION_MINOR")
+        env!("CARGO_PKG_VERSION_MINOR"),
+        env!("CARGO_PKG_VERSION_PATCH"),
     )
 }
 
@@ -53,24 +53,6 @@ fn set_fft_library(cmake_config: &mut cmake::Config) {
 }
 
 fn build_chromaprint() -> Option<PathBuf> {
-    let version = format!("v{}", chromaprint_version());
-
-    // Checkout the required version in the submodule.
-    let status = Command::new("git")
-        .current_dir(CHROMAPRINT_SRC_DIR)
-        .arg("checkout")
-        .arg(format!("tags/{}", version))
-        .status()
-        .expect("failed to run command");
-    if !status.success() {
-        println!(
-            "cargo:warning=unable to checkout version {}: {}",
-            version,
-            status.to_string()
-        );
-        return None;
-    }
-
     // Setup CMake based on provided feature flags.
     let mut cmake_config = cmake::Config::new(CHROMAPRINT_SRC_DIR);
     if is_static() {

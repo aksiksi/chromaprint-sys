@@ -1,3 +1,4 @@
 [submodule "src/chromaprint"]
 	path = src/chromaprint
 	url = https://github.com/acoustid/chromaprint
+	branch = tags/v1.5.1
