@@ -57,12 +57,13 @@ fn build_chromaprint() -> Option<PathBuf> {
     let mut cmake_config = cmake::Config::new(CHROMAPRINT_SRC_DIR);
     if is_static() {
         cmake_config.define("BUILD_SHARED_LIBS", "OFF");
-        cmake_config.cflag("-static");
-        if cfg!(not(target_vendor = "apple")) {
+        if cfg!(target_os = "linux") {
+            // Dynamically link against libstdc++ (chromaprint).
+            println!("cargo:rustc-link-lib=stdc++");
             cmake_config
                 .cflag("-static-libgcc")
                 .cflag("-static-libstdc++");
-        } else {
+        } else if cfg!(target_vendor = "apple") {
             // Dynamically link against libc++ (chromaprint).
             println!("cargo:rustc-link-lib=c++");
             // Dynamically link against the Accelerate framework (vDSP).
