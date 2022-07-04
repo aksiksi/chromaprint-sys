@@ -56,6 +56,7 @@ fn build_chromaprint() -> Option<PathBuf> {
     // Setup CMake based on provided feature flags.
     let mut cmake_config = cmake::Config::new(CHROMAPRINT_SRC_DIR);
     if is_static() {
+        cmake_config.define("BUILD_SHARED_LIBS", "OFF");
         cmake_config.cflag("-static");
         if cfg!(not(target_os = "macos")) {
             cmake_config
