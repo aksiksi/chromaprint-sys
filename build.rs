@@ -5,23 +5,25 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+const CHROMAPRINT_SRC_DIR: &str = "src/chromaprint";
+
 fn output_dir() -> PathBuf {
     PathBuf::from(env::var("OUT_DIR").unwrap())
 }
 
 // The major and minor versions of this crate track the version of Chromaprint.
 fn chromaprint_version() -> String {
-    format!("{}.{}.0", env!("CARGO_PKG_VERSION_MAJOR"), env!("CARGO_PKG_VERSION_MINOR"))
-}
-
-fn is_dynamic() -> bool {
-    env::var("CHROMAPRINT_SYS_DYNAMIC").is_ok() || cfg!(feature = "dynamic")
+    format!(
+        "{}.{}.0",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    )
 }
 
 fn is_static() -> bool {
-    !is_dynamic()
-        && (env::var("CHROMAPRINT_SYS_STATIC").is_ok()
-            || cfg!(feature = "static"))
+    // Allow overriding with _DYNAMIC env variable.
+    !env::var("CHROMAPRINT_SYS_DYNAMIC").is_ok()
+        && (env::var("CHROMAPRINT_SYS_STATIC").is_ok() || cfg!(feature = "static"))
 }
 
 fn set_fft_library(cmake_config: &mut cmake::Config) {
@@ -38,7 +40,7 @@ fn set_fft_library(cmake_config: &mut cmake::Config) {
             fftlib = Some("kissfft");
         } else if #[cfg(feature = "vdsp")] {
             if #[cfg(not(any(target_os = "macos", target_os = "ios")))] {
-                compile_error!("vDSP can only be used on macOS or iOS");
+                panic!("vDSP can only be used on macOS or iOS");
             }
 
             fftlib = Some("vdsp");
@@ -50,34 +52,27 @@ fn set_fft_library(cmake_config: &mut cmake::Config) {
     }
 }
 
-// TODO(aksiksi): Avoid downloading code. Instead, add chromaprint as a Git submodule.
-// Only question is how to "pin" the submodule to a specific version.
-fn clone_repo_and_build() -> PathBuf {
+fn build_chromaprint() -> Option<PathBuf> {
     let version = format!("v{}", chromaprint_version());
-    let dest_dir = format!("chromaprint-{}", &version);
 
-    // Remove the destination directory if it already exists.
-    if std::fs::read_dir(output_dir().join(&dest_dir)).is_ok() {
-        std::fs::remove_dir_all(output_dir().join(&dest_dir)).unwrap();
-    }
-
-    // Clone the repo.
+    // Checkout the required version in the submodule.
     let status = Command::new("git")
-        .current_dir(output_dir())
-        .arg("clone")
-        .arg("--depth=1")
-        .arg("-b")
-        .arg(version)
-        .arg("https://github.com/acoustid/chromaprint")
-        .arg(&dest_dir)
+        .current_dir(CHROMAPRINT_SRC_DIR)
+        .arg("checkout")
+        .arg(format!("tags/{}", version))
         .status()
-        .expect("failed to run git clone");
+        .expect("failed to run command");
     if !status.success() {
-        panic!("git clone failed")
+        println!(
+            "cargo:warning=unable to checkout version {}: {}",
+            version,
+            status.to_string()
+        );
+        return None;
     }
 
     // Setup CMake based on provided feature flags.
-    let mut cmake_config = cmake::Config::new(output_dir().join(&dest_dir));
+    let mut cmake_config = cmake::Config::new(CHROMAPRINT_SRC_DIR);
     if is_static() {
         cmake_config.cflag("-static");
         if cfg!(not(target_os = "macos")) {
@@ -106,51 +101,74 @@ fn clone_repo_and_build() -> PathBuf {
     }
 
     // Headers are located in the "src" directory of the chromaprint repo.
-    output_dir().join(&dest_dir).join("src")
+    Some(chromaprint_dst.join("include"))
+}
+
+#[cfg(not(target_env = "msvc"))]
+fn try_vcpkg() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_env = "msvc")]
+fn try_vcpkg() -> Option<PathBuf> {
+    println!("cargo:rerun-if-env-changed=VCPKGRS_DYNAMIC");
+    println!("cargo:rerun-if-env-changed=VCPKGRS_TRIPLET");
+
+    if !is_static() {
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        env::set_var("VCPKGRS_TRIPLET", "x64-windows");
+    }
+
+    match vcpkg::find_package("chromaprint") {
+        Ok(library) => {
+            if library.include_paths.len() == 0 {
+                println!("cargo:warning=no include paths found");
+                return None;
+            }
+            Some(library.include_paths[0].clone())
+        }
+        Err(e) => {
+            println!("cargo:warning=vcpkg did not find chromaprint: {}", e);
+            None
+        }
+    }
 }
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=CHROMAPRINT_SYS_DYNAMIC");
+    println!("cargo:rerun-if-env-changed=CHROMAPRINT_SYS_STATIC");
 
     let mut include_path = None;
 
-    // Check if the library is already available on the system.
-    #[cfg(not(windows))]
-    {
-        // Use pkg-config on Linux and macOS.
+    if cfg!(linux) && !is_static() {
+        // Use pkg-config on Linux if linking dynamically.
         let library = pkg_config::Config::new()
             .atleast_version(&chromaprint_version())
-            .statik(is_static())
             .probe("libchromaprint");
-        if let Ok(library) = library {
-            if library.include_paths.len() == 0 {
-                println!("cargo:warning=No include paths found!");
-                return;
+        match library {
+            Ok(library) => {
+                if library.include_paths.len() == 0 {
+                    println!("cargo:warning=no include paths found");
+                } else {
+                    include_path = Some(library.include_paths[0].clone());
+                }
             }
-            include_path = Some(library.include_paths[0].clone());
-        }
-    }
-    #[cfg(windows)]
-    {
-        // Use vcpkg on Windows.
-        // NOTE: There is apparently no way to pin to specific version...
-        if !is_static() {
-            env::set_var("VCPKGRS_DYNAMIC", "1");
-            env::set_var("VCPKGRS_TRIPLET", "x64-windows");
-        }
-        let library = vcpkg::find_package("chromaprint");
-        if let Ok(library) = library {
-            if library.include_paths.len() == 0 {
-                println!("cargo:warning=No include paths found!");
-                return;
+            Err(e) => {
+                println!(
+                    "cargo:warning=pkg-config did not find libchromaprint: {}",
+                    e
+                );
             }
-            include_path = Some(library.include_paths[0].clone());
         }
+    } else if cfg!(target_env = "msvc") {
+        // Try using vcpkg on Windows.
+        include_path = try_vcpkg();
     }
 
-    // If the library is not available, clone it from Github and build it.
+    // Build from source in all other cases.
     if include_path.is_none() {
-        include_path = Some(clone_repo_and_build());
+        include_path = build_chromaprint();
     }
 
     let include_path = include_path.unwrap();
