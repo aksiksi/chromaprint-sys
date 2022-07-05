@@ -2,7 +2,9 @@
 
 ![Crates.io](https://img.shields.io/crates/v/chromaprint-sys-next)
 
-Rust bindings for [Chromaprint](https://github.com/acoustid/chromaprint). Version tracks the Chromaprint version.
+Rust bindings for [Chromaprint](https://github.com/acoustid/chromaprint).
+
+The `major.minor` version tracks the library version, while `.patch` tracks the crate version.
 
 ## Prerequisites
 

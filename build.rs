@@ -13,10 +13,9 @@ fn output_dir() -> PathBuf {
 // The major and minor versions of this crate track the version of Chromaprint.
 fn chromaprint_version() -> String {
     format!(
-        "{}.{}.{}",
+        "{}.{}.0",
         env!("CARGO_PKG_VERSION_MAJOR"),
         env!("CARGO_PKG_VERSION_MINOR"),
-        env!("CARGO_PKG_VERSION_PATCH"),
     )
 }
 
@@ -89,7 +88,6 @@ fn build_chromaprint() -> Option<PathBuf> {
         println!("cargo:rustc-link-lib=chromaprint");
     }
 
-    // Headers are located in the "src" directory of the chromaprint repo.
     Some(chromaprint_dst.join("include"))
 }
 
