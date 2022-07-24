@@ -2,7 +2,7 @@
 name = "chromaprint-sys-next"
 # major.minor indicates library version
 # patch indicates the crate version
-version = "1.5.2"
+version = "1.5.3"
 edition = "2021"
 description = "Rust bindings to Chromaprint"
 authors = ["Assil Ksiksi <assil@ksiksi.net>"]
