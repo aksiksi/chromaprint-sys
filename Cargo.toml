@@ -14,6 +14,10 @@ repository = "https://github.com/aksiksi/chromaprint-sys"
 license = "MIT"
 keywords = ["audio", "fingerprinting"]
 categories = ["multimedia::audio"]
+exclude = [
+  # Test files
+  "src/chromaprint/tests/data/*",
+]
 
 [dependencies]
 libc = "0.2"
