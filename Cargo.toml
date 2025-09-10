@@ -2,7 +2,7 @@
 name = "chromaprint-sys-next"
 # major.minor indicates library version
 # patch indicates the crate version
-version = "1.5.3"
+version = "1.6.0"
 edition = "2021"
 description = "Rust bindings to Chromaprint"
 authors = ["Assil Ksiksi <assil@ksiksi.net>"]
@@ -23,7 +23,7 @@ exclude = [
 libc = "0.2"
 
 [build-dependencies]
-bindgen = "0.60"
+bindgen = "0.72.1"
 cfg-if = "1"
 cmake = "0.1"
 pkg-config = "0.3"

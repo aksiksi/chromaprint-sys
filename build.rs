@@ -70,6 +70,8 @@ fn build_chromaprint() -> Option<PathBuf> {
         }
     }
 
+    cmake_config.define("CMAKE_POLICY_VERSION_MINIMUM", "3.5");
+
     // Set the selected FFT library, if any. By default, we defer selection to Chromaprint.
     set_fft_library(&mut cmake_config);
 
