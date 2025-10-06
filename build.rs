@@ -130,7 +130,7 @@ fn main() {
 
     let mut include_path = None;
 
-    if cfg!(linux) && !is_static() {
+    if cfg!(target_os = "linux") && !is_static() {
         // Use pkg-config on Linux if linking dynamically.
         let library = pkg_config::Config::new()
             .atleast_version(&chromaprint_version())
@@ -170,7 +170,7 @@ fn main() {
         .to_string();
     let bindings = bindgen::Builder::default()
         .header(header_path)
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
 
